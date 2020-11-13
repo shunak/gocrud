@@ -21,56 +21,17 @@ package main
 import (
 	"database/sql"
 	"fmt"
-	"html/template"
+	"text/template"
 	"log"
-	"math"
 	"net/http"
 	"os"
-	"time"
-	"strconv"
 	_ "github.com/go-sql-driver/mysql"
 )
 
-// vote struct contains a single row from the votes table in the database.
-// Each vote includes a candidate ("TABS" or "SPACES") and a timestamp.
-type vote struct {
-	Candidate string
-	VoteTime  sql.NullTime
-}
-
-type visitor struct {
-	VisitDate string
-	VisitTime string
-	VisitorName string
-	VisitorKana string
-	VisitorBelongings string
-	VisitorDivision string
-	VisitorCompanionNum uint
-}
-
-
-
-// voteDiff is used to provide a string representation of the current voting
-// margin, such as "1 vote" (singular) or "2 votes" (plural).
-type voteDiff int
-
-func (v voteDiff) String() string {
-	if v == 1 {
-		return "1 vote"
-	}
-	return strconv.Itoa(int(v)) + " votes"
-}
-
-// templateData struct is used to pass data to the HTML template.
-type templateData struct {
-	TabsCount   uint
-	SpacesCount uint
-	VoteMargin  string
-	NowDate string
-	NowTime string
-	VisitorsCount uint
-	RecentVotes []visitor
-	// RecentVotes []vote
+type Employee struct{
+	Id uint
+	Name string
+	City string
 }
 
 
@@ -79,62 +40,192 @@ type app struct {
 	// db is the global database connection pool.
 	db *sql.DB
 	// tmpl is the parsed HTML template.
-	tmpl *template.Template
+	// tmpl *template.Template
 }
 
+var tmpl = template.Must(template.ParseGlob("form/*"))
 // indexHandler handles requests to the / route.
-func (app *app) indexHandler(w http.ResponseWriter, r *http.Request) {
-	switch r.Method {
-	case "GET":
-		if err := showTotals(w, r, app); err != nil {
-			log.Printf("showTotals: %v", err)
-			http.Error(w, "Internal Server Error", http.StatusInternalServerError)
-		}
-	case "POST":
-		if err := saveVote(w, r, app); err != nil {
-		// if err := showTotals2(w, r, app); err != nil {
-			log.Printf("saveVote: %v", err)
-			http.Error(w, "Internal Server Error", http.StatusInternalServerError)
-		}
-	default:
-		http.Error(w, fmt.Sprintf("HTTP Method %s Not Allowed", r.Method), http.StatusMethodNotAllowed)
+func (app *app) Index(w http.ResponseWriter, r *http.Request) {
+	selDB, err := app.db.Query("select * from employee order by id desc")
+	if err != nil{
+		panic(err.Error())
 	}
+	emp := Employee{}
+	res := []Employee{}
+	for selDB.Next(){
+		var id uint
+		var name, city string
+		err = selDB.Scan(&id, &name, &city)
+		if err != nil {
+			panic(err.Error())
+		}
+		emp.Id=id
+		emp.Name=name
+		emp.City=city
+		res = append(res,emp)
+	}
+	tmpl.ExecuteTemplate(w, "Index", res)
+	// defer app.db.Close()
 }
+
+func (app *app)Show(w http.ResponseWriter, r *http.Request){
+	nId := r.URL.Query().Get("id")
+	selDB, err := app.db.Query("select * from employee where id=?",nId) 
+	if err != nil {
+		panic(err.Error())
+	}
+	emp := Employee{}
+	for selDB.Next(){
+		var id uint
+		var name, city string
+		err = selDB.Scan(&id,&name,&city)
+		if err != nil {
+			panic(err.Error())
+		}
+		emp.Id = id
+		emp.Name=name
+		emp.City=city
+	}
+	tmpl.ExecuteTemplate(w,"Show",emp)
+	// defer app.db.Close()
+}
+
+func (app *app)New(w http.ResponseWriter, r *http.Request){
+	tmpl.ExecuteTemplate(w, "New", nil)
+}
+
+func (app *app)Edit(w http.ResponseWriter, r *http.Request){
+	nId := r.URL.Query().Get("id")
+	selDB, err := app.db.Query("select * from employee where id=?",nId) 
+	if err != nil {
+		panic(err.Error())
+	}
+	emp := Employee{}
+	for selDB.Next(){
+		var id uint
+		var name, city string
+		err = selDB.Scan(&id,&name,&city)
+		if err != nil {
+			panic(err.Error())
+		}
+		emp.Id = id
+		emp.Name=name
+		emp.City=city
+	}
+	tmpl.ExecuteTemplate(w,"Edit",emp)
+	// defer app.db.Close()
+}
+
+func (app *app)Insert(w http.ResponseWriter, r *http.Request){
+	if r.Method == "POST" {
+		name := r.FormValue("name")
+		city := r.FormValue("city")
+		insForm, err := app.db.Prepare("insert into employee(name,city) values(?,?)")
+		if err != nil {
+			panic(err.Error())
+		}
+		insForm.Exec(name,city)
+		log.Println("INSERT: Name: " + name + " | City: " + city)
+	}
+	// defer app.db.Close()
+	http.Redirect(w,r,"/",301)
+}
+
+func (app *app)Update(w http.ResponseWriter, r *http.Request){
+	if r.Method == "POST"{
+		name := r.FormValue("name")
+		city := r.FormValue("city")
+		id := r.FormValue("uid")
+		insForm, err := app.db.Prepare("update employee set name=?, city=? where id=?")
+		if err != nil {
+			panic(err.Error())
+		}
+		insForm.Exec(name,city,id)
+		log.Println("UPDATE: Name: " + name + " | City: " + city)
+	}
+	// defer app.db.Close()
+	http.Redirect(w,r,"/",301)
+}
+
+
+func (app *app)Delete(w http.ResponseWriter, r *http.Request){
+	emp := r.URL.Query().Get("id")
+	delForm, err := app.db.Prepare("delete from employee where id=?")
+	if err != nil {
+		panic(err.Error())
+	}
+	delForm.Exec(emp)
+	log.Println("DELETE")
+	// defer app.db.Close()
+	http.Redirect(w,r,"/",301)
+}
+
+// // indexHandler handles requests to the / route.
+// func (app *app) indexHandler(w http.ResponseWriter, r *http.Request) {
+// 	switch r.Method {
+// 	case "GET":
+// 		if err := showTotals(w, r, app); err != nil {
+// 			log.Printf("showTotals: %v", err)
+// 			http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+// 		}
+// 	case "POST":
+// 		if err := saveVote(w, r, app); err != nil {
+// 		// if err := showTotals2(w, r, app); err != nil {
+// 			log.Printf("saveVote: %v", err)
+// 			http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+// 		}
+// 	default:
+// 		http.Error(w, fmt.Sprintf("HTTP Method %s Not Allowed", r.Method), http.StatusMethodNotAllowed)
+// 	}
+// }
 
 func main() {
-	parsedTemplate, err := template.ParseFiles("templates/index.html")
-	if err != nil {
-		log.Fatalf("unable to parse template file: %s", err)
-	}
+	// parsedTemplate, err := template.ParseFiles("templates/index.html")
+	// if err != nil {
+	// 	log.Fatalf("unable to parse template file: %s", err)
+	// }
 
-	 app := &app{
-		tmpl: parsedTemplate,
-	}
+	 app := &app{}
 
+	 // app := &app{
+		// tmpl: parsedTemplate,
+	// }
 	// If the optional DB_TCP_HOST environment variable is set, it contains
 	// the IP address and port number of a TCP connection pool to be created,
 	// such as "127.0.0.1:3306". If DB_TCP_HOST is not set, a Unix socket
 	// connection pool will be created instead.
 	if os.Getenv("DB_TCP_HOST") != "" {
-		app.db, err = initTCPConnectionPool()
-		if err != nil {
-			log.Fatalf("initTCPConnectionPool: unable to connect: %v", err)
-		}
+		app.db, _ = initTCPConnectionPool()
+		// app.db, err = initTCPConnectionPool()
+		// if err != nil {
+		// 	log.Fatalf("initTCPConnectionPool: unable to connect: %v", err)
+		// }
 	} else {
-		app.db, err = initSocketConnectionPool()
-		if err != nil {
-			log.Fatalf("initSocketConnectionPool: unable to connect: %v", err)
-		}
+		app.db, _= initSocketConnectionPool()
+		// app.db, err = initSocketConnectionPool()
+		// if err != nil {
+		// 	log.Fatalf("initSocketConnectionPool: unable to connect: %v", err)
+		// }
 	}
 
-	// // Create the votes table if it does not already exist.
-	// if _, err = app.db.Exec(`CREATE TABLE IF NOT EXISTS votes
-	// ( vote_id SERIAL NOT NULL, time_cast timestamp NOT NULL,
-	// candidate CHAR(6) NOT NULL, PRIMARY KEY (vote_id) );`); err != nil {
-	// 	log.Fatalf("DB.Exec: unable to create table: %s", err)
-	// }
+	// Create the employee table if it does not already exist.
+	if _, err := app.db.Exec(`CREATE TABLE IF NOT EXISTS employee
+	( id int(6) unsigned NOT NULL AUTO_INCREMENT,name varchar(30) NOT NULL,
+	city varchar(30) NOT NULL, PRIMARY KEY (id) ) ENGINE=InnoDB AUTO_INCREMENT=1;`); err != nil {
+		log.Fatalf("DB.Exec: unable to create table: %s", err)
+	}
 
-	http.HandleFunc("/", app.indexHandler)
+	http.HandleFunc("/", app.Index)
+    http.HandleFunc("/show",app.Show)
+    http.HandleFunc("/new", app.New)
+    http.HandleFunc("/edit", app.Edit)
+    http.HandleFunc("/insert", app.Insert)
+    http.HandleFunc("/update", app.Update)
+    http.HandleFunc("/delete", app.Delete)
+    // http.ListenAndServe(":8080", nil)
+
+
+	// http.HandleFunc("/", app.indexHandler)
 	port := os.Getenv("PORT")
 	if port == "" {
 		port = "8080"
@@ -144,125 +235,6 @@ func main() {
 	if err := http.ListenAndServe(":"+port, nil); err != nil {
 		log.Fatal(err)
 	}
-}
-
-// recentVotes returns a slice of the last 5 votes cast.
-func recentVotes(app *app) ([]visitor, error) {
-// func recentVotes(app *app) ([]vote, error) {
-	// var votes []vote
-	var visitors []visitor
-	// var v_date = "2020-11-10"
-	// var v_time = "12:00:00"
-	t := time.Now()
-	nowDate := t.Format("2006-01-02")
-	nowTime:= t.Format("15:04")
-	fmt.Println(nowDate)
-	fmt.Println(nowTime)
-	fmt.Println(time.Now())
-	rows, err := app.db.Query(`SELECT visitor_name, visit_day, visit_time, visitor_belongings, visitor_kana, visitor_division, visitor_companion_num FROM entries where visit_day = ? and visit_time >= ? ORDER BY visit_day, visit_time ASC` ,nowDate, nowTime)
-	// rows, err := app.db.Query(`SELECT visitor_name, visit_day, visit_time, visitor_companion_num FROM entries where visit_day="2020-10-26" ORDER BY visit_day, visit_time ASC LIMIT 100`)
-	// rows, err := app.db.Query(`SELECT candidate, time_cast FROM votes ORDER BY time_cast DESC LIMIT 5`)
-	if err != nil {
-		return visitors, fmt.Errorf("DB.Query: %v", err)
-	}
-	defer rows.Close()
-	for rows.Next() {
-		nextVote := visitor{}
-		// nextVote := vote{}
-		// err := rows.Scan(&nextVote.Candidate, &nextVote.VoteTime)
-
-		err := rows.Scan(&nextVote.VisitorName, &nextVote.VisitDate, &nextVote.VisitTime, &nextVote.VisitorBelongings, &nextVote.VisitorKana, &nextVote.VisitorDivision, &nextVote.VisitorCompanionNum)
-		if err != nil {
-			// return votes, fmt.Errorf("Rows.Scan: %v", err)
-			return visitors, fmt.Errorf("Rows.Scan: %v", err)
-		}
-		// votes = append(votes, nextVote)
-		visitors = append(visitors, nextVote)
-	}
-	// return votes, nil
-	return visitors, nil
-}
-
-// currentTotals returns a templateData structure for populating the web page.
-func currentTotals(app *app) (*templateData, error) {
-	// get total votes for each candidate
-	var tabVotes, spaceVotes, vCount uint
-	var nowDate, nowTime string
-	// var v_date = "2020-10-27"
-	// var v_time = "12:00:00"
-	t := time.Now()
-	nowDate = t.Format("2006-01-02")
-	nowTime = t.Format("15:04")
-	err := app.db.QueryRow(`SELECT count(vote_id) FROM votes WHERE candidate='TABS'`).Scan(&tabVotes)
-	if err != nil {
-		return nil, fmt.Errorf("DB.QueryRow: %v", err)
-	}
-	err = app.db.QueryRow(`SELECT count(vote_id) FROM votes WHERE candidate='SPACES'`).Scan(&spaceVotes)
-	if err != nil {
-		return nil, fmt.Errorf("DB.QueryRow: %v", err)
-	}
-	err = app.db.QueryRow(`SELECT count(*) FROM entries WHERE visit_day=? and visit_time>=?`,nowDate,nowTime).Scan(&vCount)
-	if err != nil {
-		return nil, fmt.Errorf("DB.QueryRow: %v", err)
-	}
-	var voteDiffStr string = voteDiff(int(math.Abs(float64(tabVotes) - float64(spaceVotes)))).String()
-
-	latestVotesCast, err := recentVotes(app)
-	if err != nil {
-		return nil, fmt.Errorf("recentVotes: %v", err)
-	}
-
-	pageData := templateData{
-		TabsCount:   tabVotes,
-		SpacesCount: spaceVotes,
-		VoteMargin:  voteDiffStr,
-		NowDate: nowDate,
-		NowTime: nowTime,
-		VisitorsCount:  vCount,
-		RecentVotes: latestVotesCast,
-	}
-
-	return &pageData, nil
-}
-
-
-// showTotals renders an HTML template showing the current vote totals.
-func showTotals(w http.ResponseWriter, r *http.Request, app *app) error {
-	totals, err := currentTotals(app)
-	if err != nil {
-		return fmt.Errorf("currentTotals: %v", err)
-	}
-	err = app.tmpl.Execute(w, totals)
-	if err != nil {
-		return fmt.Errorf("Template.Execute: %v", err)
-	}
-	return nil
-}
-
-
-// saveVote saves a vote passed as http.Request form data.
-func saveVote(w http.ResponseWriter, r *http.Request, app *app) error {
-	if err := r.ParseForm(); err != nil {
-		return fmt.Errorf("Request.ParseForm: %v", err)
-	}
-
-	team := r.FormValue("team")
-	if team == "" {
-		return fmt.Errorf("team property missing from form submission")
-	}
-
-	// [START cloud_sql_mysql_databasesql_connection]
-	sqlInsert := "INSERT INTO votes(candidate, time_cast) VALUES(?, NOW())"
-	if team == "TABS" || team == "SPACES" {
-		if _, err := app.db.Exec(sqlInsert, team); err != nil {
-			fmt.Fprintf(w, "unable to save vote: %s", err)
-			return fmt.Errorf("DB.Exec: %v", err)
-		} else {
-			fmt.Fprintf(w, "Vote successfully cast for %s!\n", team)
-		}
-	}
-	return nil
-	// [END cloud_sql_mysql_databasesql_connection]
 }
 
 // mustGetEnv is a helper function for getting environment variables.
