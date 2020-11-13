@@ -3,8 +3,6 @@
 
 This is a simple go CRUD application, connected with Google Cloud SQL  
 
-Under development...  
-
 ## For Development Environment
 
 connect CloudSQL from local machine though Cloud SQL Proxy, run this command
