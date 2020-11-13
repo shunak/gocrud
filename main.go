@@ -1,21 +1,3 @@
-// Copyright 2019 Google LLC
-//
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-//     https://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
-
-// Sample database-sql demonstrates connection to a Cloud SQL instance from App Engine
-// standard. The application is a Golang version of the "Tabs vs Spaces" web
-// app presented at Cloud Next '19 as seen in this video:
-// https://www.youtube.com/watch?v=qVgzP3PsXFw&t=1833s
 package main
 
 import (
@@ -160,36 +142,11 @@ func (app *app)Delete(w http.ResponseWriter, r *http.Request){
 	http.Redirect(w,r,"/",301)
 }
 
-// // indexHandler handles requests to the / route.
-// func (app *app) indexHandler(w http.ResponseWriter, r *http.Request) {
-// 	switch r.Method {
-// 	case "GET":
-// 		if err := showTotals(w, r, app); err != nil {
-// 			log.Printf("showTotals: %v", err)
-// 			http.Error(w, "Internal Server Error", http.StatusInternalServerError)
-// 		}
-// 	case "POST":
-// 		if err := saveVote(w, r, app); err != nil {
-// 		// if err := showTotals2(w, r, app); err != nil {
-// 			log.Printf("saveVote: %v", err)
-// 			http.Error(w, "Internal Server Error", http.StatusInternalServerError)
-// 		}
-// 	default:
-// 		http.Error(w, fmt.Sprintf("HTTP Method %s Not Allowed", r.Method), http.StatusMethodNotAllowed)
-// 	}
-// }
 
 func main() {
-	// parsedTemplate, err := template.ParseFiles("templates/index.html")
-	// if err != nil {
-	// 	log.Fatalf("unable to parse template file: %s", err)
-	// }
 
 	 app := &app{}
 
-	 // app := &app{
-		// tmpl: parsedTemplate,
-	// }
 	// If the optional DB_TCP_HOST environment variable is set, it contains
 	// the IP address and port number of a TCP connection pool to be created,
 	// such as "127.0.0.1:3306". If DB_TCP_HOST is not set, a Unix socket
